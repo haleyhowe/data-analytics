@@ -1,0 +1,159 @@
+---
+ title: "shiny_Tidepool"
+output: html_document
+---
+```{r}
+library("readxl")
+library(ggrepel)
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(class)
+library(caTools)
+library(chron)
+library(viridis)
+library(scales)
+library(grid)
+library(lubridate)
+```
+```{r}
+install.packages("rsconnect")
+```
+
+```{r}
+setwd("~/Desktop/HS650")
+cgm = read_excel('Data_1.xlsx', sheet = 2) 
+smbg = read_excel('Data_1.xlsx', sheet = 1)
+basal = read_excel('Data_1.xlsx', sheet = 6)
+bolus = read_excel('Data_1.xlsx', sheet = 4)
+
+```
+```{r}
+
+#Changing the column names to readable in R
+#CGM
+colnames(cgm)[7] <- "Local_Time"
+#Basal
+colnames(basal)[14] <- "Local_Time"
+colnames(basal)[4] <- "Delivery_Type"
+#Bolus
+colnames(bolus)[12] <- "Local_Time"
+#Smbg
+colnames(smbg)[8] <- "Local_Time"
+
+
+```
+
+```{r}
+#Connverting Basal times to UTC format 
+basal$Local_Time <- as.numeric(as.character(basal$Local_Time)) 
+basal$Local_Time <- as.POSIXct(basal$Local_Time*3600*24, origin=as.Date("1900-01-01")-2, tz="UTC")
+basal$Local_Time
+```
+
+```{r}
+device_type <- function(dataset,column_name, x){
+  col_1 = dataset[column_name]
+  new_subset <- subset(dataset,  col_1 == x)
+  return(new_subset)
+}
+```
+
+
+
+```{r}
+#Smbg
+s_September_4 <- myday_month(4,"September", smbg)
+
+
+#Cgm
+c_September_4 <- myday_month(4,"September", cgm)
+
+#Creating a column to distinguish high/low alerts
+c_September_4$High_low <- NA
+c_September_4$High_low[c_September_4$Value >= 180] <- "High"
+c_September_4$High_low[c_September_4$Value <= 70] <- "Low"
+c_September_4$High_low[c_September_4$Value <= 180 & c_September_4$Value >= 70] <- "Normal"
+c_September_4$High_low <- as.factor(c_September_4$High_low)
+
+#Basal- subsetting by "temp" delivery
+temp_deliv <- device_type(basal, 'Delivery_Type', "temp")
+
+#September 4 Temp Basal Rates 
+temp_Sept4 <- myday_month(4,"September", temp_deliv)
+
+#Bolus
+bolus_Sept4 <- myday_month(4,"September", bolus)
+```
+
+
+
+
+```{r}
+library(shiny)
+
+ui <- fluidPage(
+  
+#Inputs 
+selectInput(inputId= "input_month", label = "Select Month", choices = ("September"),multiple = FALSE),
+
+numericInput(inputId = "input_day", value = 4, label = "Select Day", min = 4, max = 31),
+
+##selectInput(inputId= "input_year", label = "Select Year", choices = c("1990", "1991","1992","1993","1994","1995","1996","1997","1998","1999","2000", "2001", "2002","2003","2004","2005","2006","2008","2009","2010","2011","2012","2013", "2014", "2015","2016","2017","2018" ),multiple = FALSE),
+
+#selectInput(inputId= "input_datatype", label = "Select Device Type", choices = c("cgm", "smbg", "basal", "bolus" ),multiple = FALSE),
+
+
+#Outputs
+textOutput(outputId = "text")
+#textOutput(outputId = "text3")
+)
+
+ 
+server <- function(input, output){
+  
+  my_function <- reactive({
+      new_subset <- subset(cgm, ((day(cgm$Local_Time) ==input$input_day &            months(cgm$Local_Time)==input$input_month)))
+        if ((dim(new_subset)[1]) ==0){
+          print("There is no data for this month and day.")
+        }
+        return (new_subset)
+  }
+)
+
+run_myfunction <- reactive({
+  my_function()
+ }
+)
+
+
+ temp_smbg <- reactive({
+ count = 0
+for (i in 1:nrow(run_myfunction())){
+ for (x in 1:nrow(temp_Sept4)){
+if(run_myfunction()$Local_Time[i] > temp_Sept4$Local_Time[x]){
+     if((run_myfunction()$Local_Time[i]- temp_Sept4$Local_Time[x]) < dminutes(60)){
+       count = count + 1
+        return(paste(run_myfunction()$Local_Time[i] -(temp_Sept4$Local_Time[x]),"Basal Temp setting time :\n", temp_Sept4$Local_Time[x], "Fingerstick input Time: \n", run_myfunction()$Local_Time[i], "Number of times user checked fingerstick within 60 min of setting of temp rate:\n " , count))
+      
+      }
+   }
+  }
+  }
+  }
+ )
+
+  output$text <- renderText({
+  temp_smbg()
+  }
+  )
+}
+
+
+shinyApp(ui = ui, server = server)
+
+
+```
+
+
+
