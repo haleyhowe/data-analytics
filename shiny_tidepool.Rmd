@@ -16,10 +16,19 @@ library(scales)
 library(grid)
 library(lubridate)
 library(rlist)
+library(rsconnect)
 ```
 
 ```{r}
-install.packages("rlist")
+rsconnect::setAccountInfo(name='haleyhowell',
+			  token='74D4A6473487FA552ABA6CEAD026D068',
+			  secret='feyMjlU2BCCXuQRR2w0//P4DJxybUPOZPPYDoYqR')
+```
+
+```{r}
+
+library(rsconnect)
+rsconnect::deployApp('path/to/your/app')
 ```
 
 ```{r}
@@ -121,12 +130,12 @@ x = 1
 for (y in x:nrow(cgm_data)) {
   if (x==1) {
     if((cgm_data$Value[x] <= 70 & cgm_data$Value[x+1]  <= 70 & cgm_data$Value[x+2]<= 70 &  cgm_data$Value[x+3]<= 70)  & ( cgm_data$Local_Time[x]- cgm_data$Local_Time[x+3] == dminutes(15))){
-      cgm_data$High_low[x+2] <- "Low"
+      cgm_data$High_low[x+3] <- "Low"
       x = x+3
       next
     }
     if(cgm_data$Value[x] >=180 & cgm_data$Value[x+1]  >=180 & cgm_data$Value[x+2]>=180  &  cgm_data$Value[x+3]>= 180 & ( cgm_data$Local_Time[x]- cgm_data$Local_Time[x+3] == dminutes(15))){
-      cgm_data$High_low[x+2] <- "High"
+      cgm_data$High_low[x+3] <- "High"
 
       x = x+3
       next
@@ -237,6 +246,7 @@ low_cgm <- subset(cgm_data, (High_low == "Low"))
 
 
 ```{r}
+#deployApp()
 library(shiny)
 
 ui <- fluidPage(
@@ -256,29 +266,29 @@ verbatimTextOutput(outputId = "text")
 
  
 server <- function(input, output){
-  
-#  #Subsetting data by specific day and month requested by the user 
-#    day_month <- reactive({
-#       new_subset <- subset(cgm, ((day(cgm$Local_Time) ==input$input_day &            months(cgm$Local_Time)==input$input_month)))
-#       new_subset$High_low <- "test"
-#       if ((dim(new_subset)[1]) ==0){
-#           print("There is no data for this month and day.")
-#         }
-#         return (new_subset)
-#   }
-# )
-# 
-# # bolus_data <- reactive({myday_month(4,"September", bolus)
-# #   })
-# 
-#    
-#     #Subsetting by day and month 
-#    day_and_month <- reactive({
-#   day_month()
-#  }
-# )
 
-  
+#Subsetting data by specific day and month requested by the user
+    day_month <- reactive({
+       new_subset <- subset(cgm, ((day(cgm$Local_Time) ==input$input_day &            months(cgm$Local_Time)==input$input_month)))
+       new_subset$High_low <- "test"
+       if ((dim(new_subset)[1]) ==0){
+           print("There is no data for this month and day.")
+         }
+         return (new_subset)
+   }
+ )
+
+ bolus_data <- reactive({myday_month(4,"September", bolus)
+    })
+
+
+     #Subsetting by day and month
+    day_and_month <- reactive({
+   day_month()
+  }
+ )
+
+
 
 #Function will count the number of times user checked fingerstick within a certain amount of time after setting 'temp'
  temp_smbg <- reactive({
