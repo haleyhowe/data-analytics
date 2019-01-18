@@ -1,0 +1,338 @@
+---
+title: "new_data_tidepool"
+output: html_document
+---
+
+```{r}
+library(lubridate)
+library('scales')
+```
+```{r cars}
+require(data.table)
+setwd("~/Desktop/HS650")
+tidepool_data <- fread("patient_1TP.csv")
+
+table(tidepool_data$type)
+
+```
+
+```{r}
+#Converting from mmol/L to ml/dl, mg/dl
+tidepool_data$value <- tidepool_data$value*18
+```
+
+
+
+```{r}
+#subsetting the data by device type 
+basal_1 <- subset(tidepool_data, tidepool_data$type == "basal")
+bolus_1 <- subset(tidepool_data, tidepool_data$type == "bolus")
+cbg_1 <- subset(tidepool_data, tidepool_data$type == "cbg")
+smbg_1 <- subset(tidepool_data, tidepool_data$type == "smbg")
+
+```
+
+
+```{r}
+#Data preproccessing- removing unneccesary characters within time/date column
+bolus_1$time <- gsub("T", " ", bolus_1$time)
+bolus_1$time <- gsub(".000Z", "", bolus_1$time)
+
+basal_1$time <- gsub("T", " ", basal_1$time)
+basal_1$time <- gsub(".000Z", "", basal_1$time)
+
+cbg_1$time <- gsub("T", " ", cbg_1$time)
+cbg_1$time <- gsub(".000Z", "", cbg_1$time)
+
+smbg_1$time <- gsub("T", " ", smbg_1$time)
+smbg_1$time <- gsub(".000Z", "", smbg_1$time)
+
+```
+
+
+
+```{r}
+#Creating new columns for high/low events
+cbg_1$"is_below70" = FALSE
+cbg_1$"is_below70" = cbg_1$value < 70
+
+below70_rle = rle(cbg_1$is_below70)
+below70_rle$true_event_index = below70_rle$values==TRUE & below70_rle$lengths >= 3
+cbg_1$is_below70_event = rep(below70_rle$true_event_index, below70_rle$lengths)
+
+cbg_1$below70_event_start = FALSE
+
+all_event_locations = c(1, cumsum(below70_rle$lengths)[-length(below70_rle$lengths)]+1)
+
+true_event_locations = all_event_locations[below70_rle$true_event_index]
+
+cbg_1[true_event_locations,]$below70_event_start = TRUE
+     
+
+cbg_1$"is_above180" = FALSE  
+cbg_1$"is_above180" = cbg_1$value > 180
+
+above180_rle = rle(cbg_1$is_above180)
+above180_rle$true_event_index = above180_rle$values==TRUE & above180_rle$lengths >= 3
+cbg_1$is_above180_event = rep(above180_rle$true_event_index, above180_rle$lengths)
+
+cbg_1$above180_event_start = FALSE
+
+all_event_locations = c(1, cumsum(above180_rle$lengths)[-length(above180_rle$lengths)]+1)
+true_event_locations = all_event_locations[above180_rle$true_event_index]
+cbg_1[true_event_locations,]$above180_event_start = TRUE
+  
+    
+
+```
+
+```{r}
+#Subsetting data by date - DAY and MONTH 
+cbg_day <- subset(cbg_1, month(strptime(cbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8 & day(strptime(cbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 31)
+
+smbg_day <- subset(smbg_1, month(strptime(smbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8 & day(strptime(smbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 31)
+
+basal_day <- subset(basal_1, month(strptime(basal_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) ==8 & day(strptime(basal_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 31)
+
+bolus_day <- subset(bolus_1, month(strptime(bolus_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8 & day(strptime(bolus_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 31)
+```
+
+```{r}
+#Subsetting data by date - MONTH
+cbg_month <- subset(cbg_1, month(strptime(cbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8)
+
+smbg_month <- subset(smbg_1, month(strptime(smbg_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8)
+
+basal_month <- subset(basal_1, month(strptime(basal_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) ==8)
+
+bolus_month <- subset(bolus_1, month(strptime(bolus_1$time, format = "%Y-%m-%d %H:%M:%S", tz="UTC")) == 8)
+```
+
+
+
+```{r}
+
+##Low alerts and fingerstick input time - LOW_SMBG function
+  count_1 = 0
+  for (i in 1:nrow(smbg_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$below70_event_start[x] == TRUE){
+        if(strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+          if(((strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))) < dminutes(30)){
+          count_1 = count_1 + 1
+          cat("\n\nTime difference of: ",strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")- strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")," minutes", "\nLow Glucose Alert Time: ",cbg_month$time[x],"\nFingerstick input Time: ", smbg_month$time[i])
+      }
+    }
+  }
+}
+  }
+
+     if(count_1 == 0){
+      cat("\nThe count was 0.")
+    }
+   
+```
+
+```{r}
+#Frequency of low event and user checking fingerstick within 5 minutes of eachother 
+  
+count_2=0
+  for (i in 1:nrow(smbg_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$below70_event_start[x] == TRUE){
+        if(strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+          if(((strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))) < dminutes(5)){
+            count_2 = count_2 + 1
+            print((strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
+            print(paste("Fingerstick input Time:", smbg_month$time[i]))
+            print(paste("Low Glucose Alert Time:", cbg_month$time[x]))
+      }
+    }
+    }
+  }
+}
+    cat("\nFrequency of BG Check entry within *5 min* of Low glucose alert: ",count_2)
+
+```
+
+```{r}
+#Low glucose alerts and insulin bolus times 
+  count_3=0
+  for (i in 1:nrow(bolus_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$below70_event_start[x] == TRUE){
+        if(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+          if((strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(60)){
+            count_3 = count_3 + 1
+            cat( "\n\nTime difference of: ",strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"),"   minutes","\nLow Glucose Alert Time: ", cbg_month$time[x], "\nInsulin Bolus Time: ",bolus_month$time[i])
+      
+      }
+    }
+    }
+  }
+  }
+   
+   
+   if(count_3 ==0){
+     cat("\nThere were no events of a low glucose alert and insulin bolus that have occured within 60 min of each other.")
+   }
+
+ 
+
+```
+
+```{r}
+## Frequency of insulin bolus within 1 min of low BG alert
+  count_4 =0
+  for (i in 1:nrow(bolus_month)){
+     for (x in 1:nrow(cbg_month)){
+        if(cbg_month$below70_event_start[x] == TRUE){
+          if(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+            if((strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(1)){
+            count_4 = count_4 + 1
+            print(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
+            print(paste("Low Glucose Alert Time:", cbg_month$time[x]))
+            print(paste("Insulin Bolus Time:",bolus_month$time[i]))
+            print(" ")
+      }
+
+    }
+  }
+}
+ 
+}
+ cat("\nFrequency of insulin bolus within *1 min* of Low BG alert:", count_4)
+
+```
+
+```{r}
+## Frequency of insulin bolus within 1 min of high BG alert
+   count_5 =0
+  for (i in 1:nrow(bolus_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$above180_event_start[x] == TRUE){
+        if(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+          if(((strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(1)){
+          count_5 = count_5 + 1
+          print(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
+          print(paste("High Glucose Alert Time:", cbg_month$time[x]))
+          print(paste("Insulin Bolus Time:",bolus_month$time[i]))
+          print(" ")
+      }
+
+    }
+  }
+}
+ 
+}
+  cat("\nFrequency of insulin bolus within *1 min* of high BG alert: ", count_5)
+
+```
+
+```{r}
+#High glucose alerts and fingerstick input time 
+    count_6 = 0
+    for (i in 1:nrow(smbg_month)){
+      for (x in 1:nrow(cbg_month)){
+        if(cbg_month$above180_event_start[x] == TRUE){
+          if(strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+            if(((strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))) < dminutes(30)){
+            count_6 = count_6 + 1
+            cat("\n\nTime difference of: ", strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")- strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC") , " minutes", "\nHigh Glucose Alert Time:",cbg_month$time[x],"\nFingerstick input Time:", smbg_month$time[i] )
+
+       }
+     }
+     }
+   }
+ }
+    if(count_6 == 0){
+     cat("\nThe count was 0.")
+    }
+    
+
+```
+
+```{r}
+#Frequency of BG Check entry within 5 min of high glucose alert 
+    count_7=0
+  for (i in 1:nrow(smbg_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$above180_event_start[x] == TRUE){
+      if(strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+        if((strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")- strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(5)){
+        count_7 = count_7 + 1
+        cat(strptime(smbg_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")- strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"), "\n\nFingerstick Input Time:", smbg_month$time[i], "\nHigh Glucose Alert Time:", cbg_month$time[x])
+
+       }
+     }
+    }
+   }
+ }
+       cat( "Frequency of BG Check entry within 5 min of high glucose alert: ",count_7)
+ 
+```
+```{r}
+#Time difference of high glucose alert and insulin bolus time 
+    count_8 =0
+  for (i in 1:nrow(bolus_month)){
+    for (x in 1:nrow(cbg_month)){
+      if(cbg_month$above180_event_start[x] == TRUE){
+        if(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
+          if(strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC") < dminutes(60)){
+          count_8 = count_8 + 1
+          cat("\n\nTime difference of: ",strptime(bolus_month$time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(cbg_month$time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"), " minutes", "\nHigh Glucose Alert Time: ", cbg_month$time[x], "\nInsulin Bolus Time: ",bolus_month$time[i])
+      
+  
+      }
+    }
+    }
+  }
+}
+    if(count_8 == 0){
+      print("The count was 0.")
+    }
+
+```
+
+```{r}
+#Summary Statistics by day 
+
+low_events <- sum(cbg_month$below70_event_start==TRUE)
+high_events <- sum(cbg_month$above180_event_start==TRUE)
+
+cat("US-KIDS Survey Data Statistics")
+cat( "\nTotal number of high alerts for the day: ", high_events, "\nTotal number of low alerts for the day: ", low_events)
+
+cat("\nDate: ",  month(strptime(cbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) ,"/", day(strptime(cbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
+
+cat("\nLOW ALERTS")
+if(low_events!= 0){
+cat("\nPercentage of time user recieved a low alert and checked fingerstick value within *30 minutes* of each other: ",percent(count_1/low_events), count_1)
+
+
+cat("\nPercentage of time user recieved a low alert and checked fingerstick value within *5 minutes* of each other: ", percent(count_2/low_events))
+
+cat("\nPercentage of time user recieved a low alert and recieved an insulin bolus within *60 minutes* of each other: ", percent(count_3/low_events))
+
+cat("\nPercentage of time user recieved an insulin bolus within *1 min* of Low BG alert: ",  percent(count_4/low_events) ) 
+}
+
+if(low_events == 0){
+cat("\nThere were no low alerts for this day")
+}
+cat("\nHIGH ALERTS")
+
+if(high_events!= 0){
+cat("\nPercentage of time user recieved an insulin bolus within *1 min* of High BG alert: ",  percent(count_5/high_events) ) 
+
+cat("\nPerecentage of time user entered an insulin bolus within one hour of High BG alert: ", percent(count_8/high_events))
+
+cat("\nPercentage of time user recieved a high alert and checked fingerstick value within *30 minutes* of each other: ",percent(count_6/high_events))
+
+cat("\nPercentage of time user recieved a high alert and checked fingerstick value within *5 minutes* of each other: ", percent(count_7/high_events))
+}
+if(high_events == 0){
+cat("\nThere were no high alerts for this day")
+}
+```
+
