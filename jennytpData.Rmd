@@ -1,0 +1,218 @@
+---
+title: "jenny_data"
+output: html_document
+---
+
+```{r}
+library(lubridate)
+require(data.table)
+library(stringr)
+library(rlist)
+
+```
+
+
+```{r}
+#Reading in the file from a direct path name 
+data_1 <- fread("OpenHumansData/patient_dataentries.csv", stringsAsFactors = FALSE)
+# Making a copy of true time values to assure consistency
+data_1$copy_time <- data_1$V1
+```
+
+
+```{r}
+#removing rows with null values 
+data_1 <- data_1[-which(data_1$V2 == "null"),]
+```
+
+```{r}
+#converting columns to numeric for analysis 
+k = 1
+for(i in data_1$V2){
+ data_1$V3[k] <- as.numeric(i)
+
+ k = k+1
+}
+```
+
+
+```{r}
+#Creating a new column "new_time" which converts the times with +200 2 hours before the time recorded in the original V1 column. Taking out unnecessary characters for analysis, keeping in mind these times are in Zulu time which is no different than UTC 
+data_1$new_time <- 0
+count = 1
+for (i in data_1$V1){
+ if (endsWith(i,"Z") != TRUE){
+   t1 <- str_sub(data_1$copy_time[count], 1, str_length(data_1$copy_time[count])-5)
+   data_1$copy_time[count] <- gsub("T", " ", t1)
+   time2 = as.POSIXct(strptime(data_1$copy_time[count], "%Y-%m-%d%H:%M:%S", tz = "UTC"))
+   time3 = time2 - hours(2)
+   
+   time3 <- as.character(time3)
+   data_1$new_time[count] <- time3
+   count = count+1
+ }
+  if(endsWith(i,"Z") == TRUE){
+  data_1$new_time[count] <- data_1$V1[count]
+  data_1$new_time[count] <- gsub("T", " ", data_1$V1[count])
+  data_1$new_time[count] <- gsub("Z", "", data_1$new_time[count])
+
+  count = count+1
+  }
+}
+```
+
+```{r}
+#distinguishing number of times user is below 70 and above 54
+data_1$"is_b70_a54" = FALSE
+data_1$"is_b70_a54" = (data_1$V3 < 70) & (data_1$V3 > 54)
+
+below70_a54_rle = rle(data_1$is_b70_a54)
+below70_a54_rle$true_event_index = below70_a54_rle$values==TRUE & below70_a54_rle$lengths >= 3
+data_1$is_b70_a54_event = rep(below70_a54_rle$true_event_index, below70_a54_rle$lengths)
+
+data_1$below70_a54_event_start = FALSE
+
+all_event_locations = c(1, cumsum(below70_a54_rle$lengths)[-length(below70_a54_rle$lengths)]+1)
+
+true_event_locations = all_event_locations[below70_a54_rle$true_event_index]
+
+data_1[true_event_locations,]$below70_a54_event_start = TRUE
+     
+
+```
+
+```{r}
+#distinguishing number of times user is below 70 and above 54
+data_1$"is_below54" = FALSE
+data_1$"is_below54" = data_1$V3 < 54
+
+below54_rle = rle(data_1$is_below54)
+below54_rle$true_event_index = below54_rle$values==TRUE & below54_rle$lengths >= 3
+data_1$is_below54_event = rep(below54_rle$true_event_index, below54_rle$lengths)
+
+data_1$below54_event_start = FALSE
+
+all_event_locations = c(1, cumsum(below54_rle$lengths)[-length(below54_rle$lengths)]+1)
+
+true_event_locations = all_event_locations[below54_rle$true_event_index]
+
+data_1[true_event_locations,]$below54_event_start = TRUE
+     
+
+```
+
+```{r}
+#percent of time user is below 70 and above 54
+print("Percentage user is below 70 and above 54")
+v_true = length(which(data_1$is_b70_a54==TRUE))
+v_false = length(which(data_1$is_b70_a54==FALSE))
+percent_true <- v_true/v_false
+print(paste("Total number of True values: ", v_true))
+print(paste("Total number of False values: ", v_false))
+print(paste("Percentage of time user is below 70: ", round(100*percent_true, digits = 1), "%"))
+
+```
+
+```{r}
+#percent of time user is below 54
+print("Percentage user is below 54")
+v_true = length(which(data_1$is_below54==TRUE))
+v_false = length(which(data_1$is_below54==FALSE))
+percent_true <- v_true/v_false
+print(paste("Total number of True values: ", v_true))
+print(paste("Total number of False values: ", v_false))
+print(paste("Percentage of time user is below 54: ", round(100*percent_true, digits = 1), "%"))
+
+```
+
+
+```{r}
+#Printing out each time there is a time difference of more than 6 minutes, i.e. the difference between two values entered 
+n = 1
+data_1$t_diff <- 0
+consistent = 1 
+total_consis = 0
+num2 = 0
+for (i in data_1$new_time){
+  if(n == 45380){ 
+    break
+  }
+  t1 = as.POSIXct(strptime(i, "%Y-%m-%d %H:%M:%S"))
+  t2 = as.POSIXct(strptime(data_1$new_time[n+1], "%Y-%m-%d %H:%M:%S"))
+  x = t1-t2
+  
+  value = as.double(x, units = "mins")
+  data_1$time_diff[n] <- value
+  
+  # if(n == length(data_1$new_time)){
+  #   print("There were no time inconsistencies for this data set.")
+  #   break
+  # }
+  if(abs(value) > 6){
+    print(paste("Time inconsistancy. Time difference of: ", round(value, digits = 1) ,"minutes. Time1: ", t1, "    Time2: ", t2, "Value: ", n))
+    num2 = num2+1
+    consistent = 1
+  }
+ 
+  if(consistent == 288){
+    print(paste("XXXXXXXXXXTime period of consistent 288 blood sugar recordings.XXXXXXXX", n))
+    consistent = 0
+    total_consis = total_consis + 1
+  }
+  n = n+1
+  consistent = consistent+1
+}
+```
+
+```{r}
+#Printing out every instance where the time difference between two points is less than 2 min (i.e. duplicate values)
+track = 1
+
+for (i in data_1$time_diff){
+  if (i < 2){
+    print(paste ("Position: ", track, " Time difference: ",round(i, digits = 2), " Time 1: ", data_1$new_time[track], " Time 2: ",data_1$new_time[track+1], "Value 1: ", data_1$V2[track], " Value 2: ", data_1$V2[track+1]))
+  }
+  track = track +1 
+}
+```
+
+```{r}
+#Visualization 
+
+#plotting data by each value and difference of time stamps 
+plot(data_1$time_diff, ylab = "Number of minutes")
+#Plot data by month 
+plot(data_1$time_diff[1:8640], ylab = "Number of minutes", xlab = "First month of data")
+#Plot data by week 
+plot(data_1$time_diff[1:2000], ylab = "Number of minutes", xlab = "First week of data", type = 'p')
+
+```
+
+```{r}
+#Seeing how much data we have per user, assuming they are recorded start-finish
+
+begin <- as.POSIXct(strptime(data_1$new_time[1], "%Y-%m-%d %H:%M:%S", tz= "UTC"))
+
+end <- as.POSIXct(strptime(data_1$new_time[length(data_1$new_time)], "%Y-%m-%d %H:%M:%S", tz= "UTC"))
+
+total_time <- begin-end 
+total_pos_points <- as.numeric(total_time*288)
+total_points <- length(data_1$new_time)
+
+print(paste("Begin date: ", begin))
+print(paste("End date: ", end))
+print(paste("Total number of possible data points: ", round(total_pos_points, digits = 0 )))
+print(paste("Total number of actual data points given: ", total_points))
+
+#Printing out the total number of inconsistencies and total length of time recorded 
+time_begin = as.POSIXct(strptime(data_1$new_time[1], "%Y-%m-%d %H:%M:%S"))
+time_end = as.POSIXct(strptime(data_1$new_time[length(data_1$new_time)], "%Y-%m-%d %H:%M:%S"))
+
+print(paste("Total number of inconsistancies: " , num2))
+print(paste("Total number of consistent 288 readings: ", total_consis))
+print(paste("Total length of time of data recorded: ", round(time_begin-time_end, digits = 1), " days."))
+
+```
+
+
+
