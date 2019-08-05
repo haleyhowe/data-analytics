@@ -121,6 +121,11 @@ low_smbg <- function(smbg_month,cbg_month){
 c_data <- as.data.frame(cbg_month)
 s_data <- as.data.frame(smbg_month)
 
+if(nrow(c_data) == 0 | nrow(s_data) == 0) {
+  count_1 <- 0 
+  return(count_1)
+}
+
 cat("\nOutput for the month of: ", months(strptime(s_data$b.time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
 cat("\nEvent description: Time difference of a low alert and a fingerstick input time within 30 minutes ")
 
@@ -151,6 +156,11 @@ smbg_low_5min <- function(smbg_month, cbg_month){
 c_data <- as.data.frame(cbg_month)
 s_data <- as.data.frame(smbg_month)
 
+if(nrow(c_data) == 0 | nrow(s_data) == 0) {
+  count_2 <- 0 
+  return(count_2)
+}
+
 cat("\nEvent description: Frequency of low alert and user checking fingerstick within 5 minutes of each other ")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
 count_2=0
@@ -161,8 +171,8 @@ count_2=0
           if(((strptime(s_data$b.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))) < dminutes(5)){
             count_2 = count_2 + 1
             print((strptime(s_data$b.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))- (strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
-            print(paste("Fingerstick input Time:", s_data$b.time[i]))
-            print(paste("Low Glucose Alert Time:", c_data$a.time[x]))
+            cat("Fingerstick input Time:", s_data$b.time[i])
+            cat("Low Glucose Alert Time:", c_data$a.time[x])
       }
     }
     }
@@ -179,6 +189,12 @@ count_2=0
 bolus_low <- function(cbg_month, bolus_month){
   c_data <- as.data.frame(cbg_month)
   bol_data <- as.data.frame(bolus_month)
+  
+  if(nrow(c_data) == 0 | nrow(bol_data) == 0) {
+  count_3 <- 0 
+  return(count_3)
+}
+  
 cat("\nEvent description: Time difference of a low alert and time when user received an insulin bolus \n within 60 minutes of each other ")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
   count_3=0
@@ -209,6 +225,12 @@ cat("\nEvent description: Time difference of a low alert and time when user rece
 bolus_low_1minute <- function(cbg_month, bolus_month){
     c_data <- as.data.frame(cbg_month)
     bol_data <- as.data.frame(bolus_month)
+    
+  
+  if(nrow(c_data) == 0 | nrow(bol_data) == 0) {
+  count_4 <- 0 
+  return(count_4)
+}
   
 cat("\nEvent description: Frequency of low alert and insulin bolus within 1 minute of each other ")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
@@ -219,10 +241,10 @@ cat("\nEvent description: Frequency of low alert and insulin bolus within 1 minu
           if(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
             if((strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(1)){
             count_4 = count_4 + 1
-            print(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
-            print(paste("Low Glucose Alert Time:", c_data$a.time[x]))
-            print(paste("Insulin Bolus Time:",bol_data$d.time[i]))
-            print(" ")
+            cat(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
+           cat("Low Glucose Alert Time:", c_data$a.time[x])
+            cat("Insulin Bolus Time:",bol_data$d.time[i])
+            cat(" ")
       }
 
     }
@@ -243,6 +265,13 @@ cat("\nEvent description: Frequency of low alert and insulin bolus within 1 minu
 high_bolus_1 <- function(cbg_month, bolus_month){
     c_data <- as.data.frame(cbg_month)
     bol_data <- as.data.frame(bolus_month)
+    
+    
+  if(nrow(c_data) == 0 | nrow(bol_data) == 0) {
+  count_5 <- 0 
+  return(count_5)
+}
+  
 cat("\nEvent description: Frequency of high alert and insulin bolus within 1 minute of each other ")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
    count_5 =0
@@ -252,10 +281,10 @@ cat("\nEvent description: Frequency of high alert and insulin bolus within 1 min
         if(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") > strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")){
           if(((strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC")) < dminutes(1)){
           count_5 = count_5 + 1
-          print(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
-          print(paste("High Glucose Alert Time:", c_data$a.time[x]))
-          print(paste("Insulin Bolus Time:",bol_data$d.time[i]))
-          print(" ")
+          cat(strptime(bol_data$d.time[i], format = "%Y-%m-%d %H:%M:%S", tz="UTC") - strptime(c_data$a.time[x], format = "%Y-%m-%d %H:%M:%S", tz="UTC"))
+          cat("High Glucose Alert Time:", c_data$a.time[x])
+          cat("Insulin Bolus Time:",bol_data$d.time[i])
+          cat(" ")
       }
 
     }
@@ -272,6 +301,12 @@ cat("\nEvent description: Frequency of high alert and insulin bolus within 1 min
 high_smbg <- function(smbg_month, cbg_month){
     c_data <- as.data.frame(cbg_month)
   s_data <- as.data.frame(smbg_month)
+  
+  if(nrow(c_data) == 0 | nrow(s_data) == 0) {
+  count_6 <- 0 
+  return(count_6)
+}
+  
 cat("\nEvent description:  Time difference of a high alert and a fingerstick input time within 30 minutes ")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")), "\n")
     count_6 = 0
@@ -299,6 +334,12 @@ cat("\nEvent description:  Time difference of a high alert and a fingerstick inp
 high_smbg_5 <- function(smbg_month,cbg_month){
   c_data <- as.data.frame(cbg_month)
   s_data <- as.data.frame(smbg_month)
+  
+  if(nrow(c_data) == 0 | nrow(s_data) == 0) {
+  count_7 <- 0 
+  return(count_7)
+}
+  
  
 cat("\nEvent description: Frequency of high alert and user checking fingerstick \n within 5 minutes of each other")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")), "\n")
@@ -326,6 +367,13 @@ cat("\nEvent description: Frequency of high alert and user checking fingerstick 
 high_bolus <- function(cbg_month,bolus_month){
   c_data <- as.data.frame(cbg_month)
   bol_data <- as.data.frame(bolus_month)
+  
+  
+  if(nrow(c_data) == 0 | nrow(bol_data) == 0) {
+  count_8 <- 0 
+  return(count_8)
+}
+  
 
 cat("\nEvent description: Time difference of a high alert and time user received an insulin bolus \n within 60 minutes of each other")
 #cat("\nOutput for the month of: ", months(strptime(smbg_month$time[1], format = "%Y-%m-%d %H:%M:%S", tz="UTC")))
@@ -420,10 +468,18 @@ end_year <- year(strptime(range(smbg_month$b.time)[2], format = "%Y-%m-%d %H:%M:
 
 cat("\n\nDescriptive Summaries: ")
 
+if(nrow(cbg_month) == 0){
+ mean <- 0
+ median <- 0
+ low_range <- 0 
+ high_range <- 0
+}
+else{
 mean <- mean(cbg_month$a.value)
 median <- median(cbg_month$a.value)
 low_range <- range(cbg_month$a.value)[1]
 high_range <- range(cbg_month$a.value)[2]
+}
 
 
 cat("\n Average CGM value: " , mean )
@@ -436,7 +492,7 @@ cat( "\n\nTotal number of high alerts for the month: ", high_events, "\nTotal nu
 cat("\n\nLOW ALERTS\n\n")
 if(low_events!= 0){
   if(count_1!=0){
-cat("\nPercentage of time user recieved a low alert and checked fingerstick value \n within *30 minutes* of each other: ", percent(count_1/low_events),"\n")
+cat("\nPercentage of time user recieved a low alert and checked fingerstick value \n within *30 minutes* of each other: ", percent(count_1/low_events),"\n", "count: ", count_1, "low_events: ", low_events)
     perc_1 <-  percent(count_1/low_events)
   }
   else{
@@ -538,7 +594,7 @@ perc_list <- list(patient_id,mean, median, low_range, high_range, perc_1,perc_2,
 return(perc_list)
 }
 
-create_patient_data <- function(patient_id, final_df){
+create_patient_data <- function(patient_id, final_df, month, year){
 
 #step 1  
 d1 <- data_load(patient_id)
@@ -549,7 +605,7 @@ d2 <- preprocess(d1)
 
 
 #Step 3
-y1 <- subset_data(d2[1],d2[2],d2[3],d2[4],8,2018)
+y1 <- subset_data(d2[1],d2[2],d2[3],d2[4],month,year)
 
 #Step 4
 g1 <- y1[1]
@@ -574,7 +630,12 @@ return(final_df)
 # MAIN - test run
 #Grab files name to loop through folder and pull out patients
 
-file_names <- list.files(path = "/Users/haleyhowell/Desktop/Desktop_Haley’s_MacBook_Air/HS650/Tidepool/data-analytics/patients")
+input_files <- list.files(path = "/Users/haleyhowell/Desktop/Desktop_Haley’s_MacBook_Air/HS650/Tidepool/data-analytics/patients")
+
+
+ list_1 <- sapply(input_files, function(x) if (x!= "new_data_tidepoolMonthly.Rmd") {x} else {NULL})
+#
+file_names = list_1[-which(sapply(list_1, is.null))]
 
 
 final_df <- data.frame(matrix(ncol = 13, nrow = 0))
@@ -583,24 +644,18 @@ colnames(final_df) <- c_names
 
 
 for(i in file_names){
-  final_df <- create_patient_data(i, final_df)
+  cat("File name: ", i)
+  final_df <- create_patient_data(i, final_df, 8, 2018)
 }
+
+
 
 ```
 
 ```{r}
-d1 <- data_load(file_names[1])
-
-
-#Step 2
-d2 <- preprocess(d1)
-
-
-#Step 3
-y1 <- subset_data(d2[1],d2[2],d2[3],d2[4],8,2018)
-
-
-hello <- as.data.frame(d2[1])
+#Writing final values to .csv
+write.csv(final_df,'final_df.csv')
 ```
+
 
 
